@@ -7,9 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "mobile": "npm run start --workspace=apps/mobile",
-    "mobile:ios": "npm run ios --workspace=apps/mobile",
-    "mobile:android": "npm run android --workspace=apps/mobile",
+    "mobile": "pnpm --filter mobile start",
+    "mobile:ios": "pnpm --filter mobile ios",
+    "mobile:android": "pnpm --filter mobile android",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint"
@@ -17,6 +17,7 @@
   "devDependencies": {
     "turbo": "latest"
   },
+  "packageManager": "pnpm@10.0.0",
   "author": "Emerson Max",
   "license": "MIT",
   "description": "Open source peak identification app — point your phone at a mountain and find out what it is."
