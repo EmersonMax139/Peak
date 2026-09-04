@@ -18,6 +18,8 @@ export interface PeakFinderResult extends PeakFinderState {
   locationAccuracy: number | null;
   heading: number | null;
   pitch: number | null;
+  /** True when the heading is corrected to true north (declination applied). */
+  trueNorth: boolean;
   permissionGranted: boolean;
   /**
    * All peaks within the search radius, sorted by distance — used by the
@@ -148,6 +150,7 @@ export function usePeakFinder(): PeakFinderResult {
     locationAccuracy: location.accuracy,
     heading: compass.orientation?.heading ?? null,
     pitch: compass.orientation?.pitch ?? null,
+    trueNorth: compass.orientation?.trueNorth ?? false,
     permissionGranted: location.permissionGranted,
     allNearbyPeaks,
     isLoadingPeaks,

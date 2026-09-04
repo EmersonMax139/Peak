@@ -16,6 +16,7 @@ export default function FinderScreen() {
     coordinates,
     heading,
     pitch,
+    trueNorth,
   } = usePeakFinder();
 
   if (!cameraPermission) {
@@ -63,11 +64,12 @@ export default function FinderScreen() {
       )}
 
       <StatusHUD
-        locationAccuracy={locationAccuracy}
-        elevation={coordinates?.altitude ?? null}
-        heading={heading}
-        pitch={pitch}
-      />
+          locationAccuracy={locationAccuracy}
+          elevation={coordinates?.altitude ?? null}
+          heading={heading}
+          pitch={pitch}
+          trueNorth={trueNorth}
+        />
     </View>
   );
 }

@@ -25,12 +25,13 @@ interface OverpassResponse {
  * No API key required. Uses the public Overpass API which is rate-limited but
  * sufficient for per-region fetches triggered only when the user moves >50 km.
  *
- * @throws {Error} on non-2xx HTTP status. Callers should handle and fall back
- *   to cached SQLite data.
+ * @throws {Error} on non-2xx HTTP status or if the request exceeds `timeoutMs`.
+ * Callers should handle and fall back to cached SQLite data.
  */
 export async function fetchPeaksFromOverpass(
   center: Coordinates,
-  radiusKm: number
+  radiusKm: number,
+  timeoutMs = 10_000
 ): Promise<Peak[]> {
   const radiusMeters = radiusKm * 1000;
 
@@ -43,11 +44,15 @@ export async function fetchPeaksFromOverpass(
     'out;',
   ].join('');
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   const response = await fetch(OVERPASS_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `data=${encodeURIComponent(query)}`,
-  });
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timer));
 
   if (!response.ok) {
     throw new Error(`Overpass API returned ${response.status}`);

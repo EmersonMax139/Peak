@@ -6,6 +6,8 @@ interface Props {
   elevation: number | null;
   heading: number | null;
   pitch: number | null;
+  /** Whether heading is corrected to true north. Shows T/M indicator. */
+  trueNorth: boolean;
 }
 
 function cardinalDirection(degrees: number): string {
@@ -13,7 +15,7 @@ function cardinalDirection(degrees: number): string {
   return dirs[Math.round(degrees / 45) % 8];
 }
 
-export function StatusHUD({ locationAccuracy, elevation, heading, pitch }: Props) {
+export function StatusHUD({ locationAccuracy, elevation, heading, pitch, trueNorth }: Props) {
   return (
     <View style={styles.hud} pointerEvents="none">
       {locationAccuracy !== null && (
@@ -28,7 +30,7 @@ export function StatusHUD({ locationAccuracy, elevation, heading, pitch }: Props
       )}
       {heading !== null && (
         <Text style={styles.hudText}>
-          {Math.round(heading)}° {cardinalDirection(heading)}
+          {Math.round(heading)}° {cardinalDirection(heading)}{trueNorth ? ' T' : ' M'}
         </Text>
       )}
       {pitch !== null && (

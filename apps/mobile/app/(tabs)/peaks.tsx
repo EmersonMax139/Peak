@@ -8,26 +8,20 @@ import {
 import { usePeakFinder } from '@/hooks/usePeakFinder';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { formatBearing, formatDistance, formatElevation } from '@/lib/format';
+import { formatDistance, formatElevation } from '@/lib/format';
 import type { PeakCandidate } from '@peak/types';
 
 /**
- * Minimum topographic prominence to include a tagged peak in the Nearby list.
- * 300m (~1000 ft) filters out minor bumps and sub-peaks.
+ * Number of peaks to show in the Nearby list.
+ * Sorted by elevation (tallest first), then re-sorted by distance for display.
  */
-const MIN_PROMINENCE_M = 300;
+const MAX_NEARBY_PEAKS = 20;
 
-/**
- * Minimum elevation for peaks that have no prominence tag.
- * 1500m (~5000 ft) keeps proper mountains while hiding unnamed hillocks.
- */
-const MIN_UNTAGGED_ELEVATION_M = 1500;
-
-function isNotablePeak(peak: PeakCandidate): boolean {
-  if (peak.prominence !== undefined) {
-    return peak.prominence >= MIN_PROMINENCE_M;
-  }
-  return peak.elevationMeters >= MIN_UNTAGGED_ELEVATION_M;
+function topNearbyPeaks(peaks: PeakCandidate[]): PeakCandidate[] {
+  return [...peaks]
+    .sort((a, b) => b.elevationMeters - a.elevationMeters)
+    .slice(0, MAX_NEARBY_PEAKS)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
 }
 
 export default function NearbyPeaksScreen() {
@@ -36,7 +30,7 @@ export default function NearbyPeaksScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
 
-  const notablePeaks = allNearbyPeaks.filter(isNotablePeak);
+  const notablePeaks = topNearbyPeaks(allNearbyPeaks);
   const isLocating = status === 'locating' && !coordinates;
 
   return (
@@ -65,29 +59,22 @@ export default function NearbyPeaksScreen() {
                 <Text style={[styles.peakName, { color: colors.text }]}>
                   {item.name}
                 </Text>
-                <Text style={[styles.peakMeta, { color: colors.text + 'aa' }]}>
-                  {[item.region, item.country].filter(Boolean).join(', ')}
-                  {item.elevationMeters > 0
-                    ? ` · ${formatElevation(item.elevationMeters)}`
-                    : ''}
-                  {item.prominence !== undefined
-                    ? ` · ${Math.round(item.prominence)}m prom`
-                    : ''}
-                </Text>
               </View>
               <View style={styles.peakStats}>
+                <Text style={[styles.elevation, { color: colors.text, opacity: 0.6 }]}>
+                  {item.elevationMeters > 0 ? formatElevation(item.elevationMeters) : '—'}
+                </Text>
                 <Text style={[styles.distance, { color: colors.tint }]}>
                   {formatDistance(item.distanceKm)}
-                </Text>
-                <Text style={[styles.bearing, { color: colors.text + 'aa' }]}>
-                  {formatBearing(item.bearingDegrees)}
                 </Text>
               </View>
             </View>
           )}
           ListEmptyComponent={
             <Text style={[styles.subtext, { color: colors.text }]}>
-              {error ?? (isLoadingPeaks ? 'Loading peaks…' : 'No peaks found nearby.')}
+              {error ?? (isLoadingPeaks
+                ? 'Fetching peaks from OpenStreetMap…\nThis takes a few seconds on first load.'
+                : 'No peaks found nearby.')}
             </Text>
           }
         />
@@ -143,18 +130,16 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
   },
-  peakMeta: {
-    fontSize: 13,
-  },
   peakStats: {
     alignItems: 'flex-end',
     gap: 2,
   },
+  elevation: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
   distance: {
     fontSize: 16,
     fontWeight: '700',
-  },
-  bearing: {
-    fontSize: 13,
   },
 });
