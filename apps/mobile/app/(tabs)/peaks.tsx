@@ -8,28 +8,20 @@ import {
 import { usePeakFinder } from '@/hooks/usePeakFinder';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { PNW_PEAKS } from '@/data/peaks-pnw';
-import { bearingDegrees, distanceKm, elevationAngleDegrees } from '@/lib/bearing';
 import { formatBearing, formatDistance, formatElevation } from '@/lib/format';
-import type { Peak } from '@peak/types';
+import type { PeakCandidate } from '@peak/types';
 
 export default function NearbyPeaksScreen() {
-  const { coordinates, status, error } = usePeakFinder();
+  const { status, error, allNearbyPeaks, isLoadingPeaks, coordinates } =
+    usePeakFinder();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
 
-  const nearbyPeaks = coordinates
-    ? PNW_PEAKS.map((peak: Peak) => {
-        const dist = distanceKm(coordinates, peak.coordinates);
-        const bearing = bearingDegrees(coordinates, peak.coordinates);
-        const elevAngle = elevationAngleDegrees(coordinates, peak.coordinates, dist);
-        return { peak, dist, bearing, elevAngle };
-      }).sort((a, b) => a.dist - b.dist)
-    : [];
+  const isLocating = status === 'locating' && !coordinates;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {status === 'locating' && !coordinates ? (
+      {isLocating ? (
         <View style={styles.centered}>
           <ActivityIndicator />
           <Text style={[styles.subtext, { color: colors.text }]}>
@@ -38,35 +30,41 @@ export default function NearbyPeaksScreen() {
         </View>
       ) : (
         <FlatList
-          data={nearbyPeaks}
-          keyExtractor={(item) => item.peak.id}
+          data={allNearbyPeaks}
+          keyExtractor={(item: PeakCandidate) => item.id}
           contentContainerStyle={styles.list}
           ListHeaderComponent={
-            <Text style={[styles.header, { color: colors.text }]}>Nearby Peaks</Text>
+            <View style={styles.headerRow}>
+              <Text style={[styles.header, { color: colors.text }]}>Nearby Peaks</Text>
+              {isLoadingPeaks && <ActivityIndicator size="small" />}
+            </View>
           }
-          renderItem={({ item }) => (
+          renderItem={({ item }: { item: PeakCandidate }) => (
             <View style={[styles.peakCard, { borderColor: colors.text + '22' }]}>
               <View style={styles.peakMain}>
                 <Text style={[styles.peakName, { color: colors.text }]}>
-                  {item.peak.name}
+                  {item.name}
                 </Text>
                 <Text style={[styles.peakMeta, { color: colors.text + 'aa' }]}>
-                  {item.peak.region}, {item.peak.country} · {formatElevation(item.peak.elevationMeters)}
+                  {[item.region, item.country].filter(Boolean).join(', ')}
+                  {item.elevationMeters > 0
+                    ? ` · ${formatElevation(item.elevationMeters)}`
+                    : ''}
                 </Text>
               </View>
               <View style={styles.peakStats}>
                 <Text style={[styles.distance, { color: colors.tint }]}>
-                  {formatDistance(item.dist)}
+                  {formatDistance(item.distanceKm)}
                 </Text>
                 <Text style={[styles.bearing, { color: colors.text + 'aa' }]}>
-                  {formatBearing(item.bearing)}
+                  {formatBearing(item.bearingDegrees)}
                 </Text>
               </View>
             </View>
           )}
           ListEmptyComponent={
             <Text style={[styles.subtext, { color: colors.text }]}>
-              {error ?? 'No peaks found nearby.'}
+              {error ?? (isLoadingPeaks ? 'Loading peaks…' : 'No peaks found nearby.')}
             </Text>
           }
         />
@@ -85,6 +83,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
   list: {
     padding: 16,
     gap: 10,
@@ -92,7 +96,6 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 28,
     fontWeight: '700',
-    marginBottom: 8,
   },
   subtext: {
     fontSize: 15,
