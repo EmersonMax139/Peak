@@ -10,6 +10,7 @@ interface OverpassNode {
   tags?: {
     name?: string;
     ele?: string;
+    prominence?: string;
     [key: string]: string | undefined;
   };
 }
@@ -62,6 +63,11 @@ export async function fetchPeaksFromOverpass(
       const elevationMeters = parseFloat(rawEle);
       const elev = isNaN(elevationMeters) ? 0 : elevationMeters;
 
+      // OSM `prominence` tag — meters of topographic prominence. Also a string.
+      const rawProminence = node.tags?.prominence ?? '';
+      const parsedProminence = parseFloat(rawProminence);
+      const prominence = isNaN(parsedProminence) ? 0 : parsedProminence;
+
       return {
         id: `osm-${node.id}`,
         name: node.tags?.name ?? 'Unknown Peak',
@@ -77,6 +83,7 @@ export async function fetchPeaksFromOverpass(
         // reverse-geocoding or a country boundary lookup in Phase 3.
         country: '',
         osmId: String(node.id),
+        ...(prominence > 0 ? { prominence } : {}),
       };
     });
 }

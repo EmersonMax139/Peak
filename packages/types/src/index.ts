@@ -15,6 +15,13 @@ export interface Peak {
   region?: string;
   /** OSM node/way ID if sourced from OpenStreetMap */
   osmId?: string;
+  /**
+   * Topographic prominence in meters — how much the peak stands above
+   * the highest col connecting it to a higher peak. A useful proxy for
+   * "how significant is this mountain". Sourced from the OSM `prominence` tag.
+   * Absent if not tagged in OSM.
+   */
+  prominence?: number;
 }
 
 export interface DeviceOrientation {

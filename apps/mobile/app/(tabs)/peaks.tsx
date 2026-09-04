@@ -11,12 +11,32 @@ import Colors from '@/constants/Colors';
 import { formatBearing, formatDistance, formatElevation } from '@/lib/format';
 import type { PeakCandidate } from '@peak/types';
 
+/**
+ * Minimum topographic prominence to include a tagged peak in the Nearby list.
+ * 300m (~1000 ft) filters out minor bumps and sub-peaks.
+ */
+const MIN_PROMINENCE_M = 300;
+
+/**
+ * Minimum elevation for peaks that have no prominence tag.
+ * 1500m (~5000 ft) keeps proper mountains while hiding unnamed hillocks.
+ */
+const MIN_UNTAGGED_ELEVATION_M = 1500;
+
+function isNotablePeak(peak: PeakCandidate): boolean {
+  if (peak.prominence !== undefined) {
+    return peak.prominence >= MIN_PROMINENCE_M;
+  }
+  return peak.elevationMeters >= MIN_UNTAGGED_ELEVATION_M;
+}
+
 export default function NearbyPeaksScreen() {
   const { status, error, allNearbyPeaks, isLoadingPeaks, coordinates } =
     usePeakFinder();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
 
+  const notablePeaks = allNearbyPeaks.filter(isNotablePeak);
   const isLocating = status === 'locating' && !coordinates;
 
   return (
@@ -30,7 +50,7 @@ export default function NearbyPeaksScreen() {
         </View>
       ) : (
         <FlatList
-          data={allNearbyPeaks}
+          data={notablePeaks}
           keyExtractor={(item: PeakCandidate) => item.id}
           contentContainerStyle={styles.list}
           ListHeaderComponent={
@@ -49,6 +69,9 @@ export default function NearbyPeaksScreen() {
                   {[item.region, item.country].filter(Boolean).join(', ')}
                   {item.elevationMeters > 0
                     ? ` · ${formatElevation(item.elevationMeters)}`
+                    : ''}
+                  {item.prominence !== undefined
+                    ? ` · ${Math.round(item.prominence)}m prom`
                     : ''}
                 </Text>
               </View>

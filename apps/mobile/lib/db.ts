@@ -24,7 +24,8 @@ export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
       altitude    REAL,
       elevation_m REAL,
       country     TEXT NOT NULL DEFAULT '',
-      region      TEXT
+      region      TEXT,
+      prominence  REAL
     );
 
     CREATE INDEX IF NOT EXISTS idx_peaks_coords ON peaks (latitude, longitude);
@@ -36,6 +37,25 @@ export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
       fetched_at INTEGER NOT NULL
     );
   `);
+
+  // Schema migrations — run after the CREATE TABLE so the table always exists.
+  const versionRow = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  const schemaVersion = versionRow?.user_version ?? 0;
+
+  if (schemaVersion < 1) {
+    // v1: add prominence column. ALTER TABLE is a no-op if column already
+    // exists on a fresh install, but we still need this for devices that
+    // already had peaks.db without the column.
+    try {
+      await db.execAsync('ALTER TABLE peaks ADD COLUMN prominence REAL');
+    } catch {
+      // Column may already exist on fresh install from updated CREATE TABLE.
+    }
+    // Clear the fetch cache so the next launch re-fetches peaks with
+    // prominence data populated.
+    await db.execAsync('DELETE FROM fetch_cache');
+    await db.execAsync('PRAGMA user_version = 1');
+  }
 
   _db = db;
   return db;
@@ -53,9 +73,9 @@ export async function upsertPeaks(
   await db.withExclusiveTransactionAsync(async (txn: SQLite.SQLiteDatabase) => {
     const stmt = await txn.prepareAsync(`
       INSERT OR REPLACE INTO peaks
-        (id, name, latitude, longitude, altitude, elevation_m, country, region)
+        (id, name, latitude, longitude, altitude, elevation_m, country, region, prominence)
       VALUES
-        ($id, $name, $lat, $lon, $alt, $elev, $country, $region)
+        ($id, $name, $lat, $lon, $alt, $elev, $country, $region, $prominence)
     `);
     try {
       for (const peak of peaks) {
@@ -68,6 +88,7 @@ export async function upsertPeaks(
           $elev: peak.elevationMeters,
           $country: peak.country,
           $region: peak.region ?? null,
+          $prominence: peak.prominence ?? null,
         });
       }
     } finally {
@@ -85,6 +106,7 @@ interface DbPeakRow {
   elevation_m: number | null;
   country: string;
   region: string | null;
+  prominence: number | null;
 }
 
 /**
@@ -128,6 +150,7 @@ export async function queryPeaksInBounds(
         elevationMeters: row.elevation_m ?? 0,
         country: row.country,
         ...(row.region !== null ? { region: row.region } : {}),
+        ...(row.prominence !== null ? { prominence: row.prominence } : {}),
       })
     );
 }
