@@ -10,7 +10,7 @@ Peak is a free, open source peak identification app. It combines GPS, compass, a
 
 1. GPS fixes your position on the map
 2. Compass + gyroscope determine which direction and angle you're pointing
-3. A peak database is queried for summits along that bearing within your radius
+3. Peak data is fetched from OpenStreetMap and cached locally in SQLite
 4. Candidates are ranked by angular alignment and distance
 5. The camera view overlays the best match with name, elevation, and distance
 
@@ -26,23 +26,25 @@ peak/
 │   └── mobile/          # Expo (React Native + Expo Router)
 ├── packages/
 │   └── types/           # Shared TypeScript interfaces (Peak, Coordinates, etc.)
+├── docs/
+│   └── phase-2.md       # Architecture guide and roadmap
 ├── turbo.json
 └── package.json
 ```
 
 ## Getting Started
 
-**Requirements:** Node 20+, npm 10+
+**Requirements:** Node ≥24, pnpm ≥10
 
 ```bash
 # Install all workspace dependencies
-npm install
+pnpm install
 
 # Start the Expo dev server
-npm run mobile
+pnpm mobile
 
 # Run on iOS simulator
-npm run mobile:ios
+pnpm mobile:ios
 ```
 
 > The app requires a physical device for real compass and GPS readings.
@@ -59,14 +61,15 @@ npm run mobile:ios
 | Camera | expo-camera |
 | GPS | expo-location |
 | Compass + motion | expo-sensors (DeviceMotion) |
-| Local data | expo-sqlite |
-| Monorepo | Turborepo + npm workspaces |
+| Peak data | OpenStreetMap (Overpass API) |
+| Local cache | expo-sqlite |
+| Monorepo | Turborepo + pnpm workspaces |
 
 ---
 
 ## Peak Data
 
-The initial seed dataset covers major PNW volcanoes and peaks. The full pipeline will load peak data from OpenStreetMap and USGS sources into a local SQLite database, organized by geographic tile for fast regional lookup.
+Peak data is sourced from OpenStreetMap via the Overpass API. On first launch the app fetches all named peaks within 200 km of the user's location and stores them in a local SQLite database. Subsequent launches in the same region read directly from SQLite with no network call. The cache refreshes automatically when the user moves more than 50 km from their last fetch origin — the app works fully offline after the first regional fetch.
 
 ---
 

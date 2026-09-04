@@ -39,35 +39,35 @@ export default function FinderScreen() {
 
   return (
     <View style={styles.container}>
-      <CameraView style={styles.camera} facing="back">
-        {topMatch && <PeakOverlay peak={topMatch} candidates={candidates} />}
+      <CameraView style={styles.camera} facing="back" />
 
-        {status !== 'identified' && (
-          <View style={styles.scanningOverlay}>
-            {status === 'locating' && (
-              <>
-                <ActivityIndicator color="#fff" size="large" />
-                <Text style={styles.scanningText}>Getting GPS fix…</Text>
-              </>
-            )}
-            {status === 'scanning' && (
-              <Text style={styles.scanningText}>Point at a mountain peak</Text>
-            )}
-            {locationDenied && (
-              <Text style={styles.scanningText}>
-                {error ?? 'Location access required.'}
-              </Text>
-            )}
-          </View>
-        )}
+      {topMatch && <PeakOverlay peak={topMatch} candidates={candidates} />}
 
-        <StatusHUD
-          locationAccuracy={locationAccuracy}
-          elevation={coordinates?.altitude ?? null}
-          heading={heading}
-          pitch={pitch}
-        />
-      </CameraView>
+      {status !== 'identified' && (
+        <View style={styles.scanningOverlay}>
+          {status === 'locating' && (
+            <>
+              <ActivityIndicator color="#fff" size="large" />
+              <Text style={styles.scanningText}>Getting GPS fix…</Text>
+            </>
+          )}
+          {status === 'scanning' && (
+            <Text style={styles.scanningText}>Point at a mountain peak</Text>
+          )}
+          {locationDenied && (
+            <Text style={styles.scanningText}>
+              {error ?? 'Location access required.'}
+            </Text>
+          )}
+        </View>
+      )}
+
+      <StatusHUD
+        locationAccuracy={locationAccuracy}
+        elevation={coordinates?.altitude ?? null}
+        heading={heading}
+        pitch={pitch}
+      />
     </View>
   );
 }

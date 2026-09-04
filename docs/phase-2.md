@@ -112,107 +112,101 @@ These tolerances are generous intentionally — they will need tuning once teste
 
 ---
 
-## Phase 2 — Real Peak Data
+## Phase 2 — Real Peak Data ✅ Complete
 
-### Goal
+### What was built
 
-Replace `PNW_PEAKS` with a live, regional, offline-capable peak database.
+`data/peaks-pnw.ts` (12 hardcoded PNW peaks) has been deleted and replaced with a
+live, regional, offline-capable peak database sourced from OpenStreetMap.
 
 ### Data source: OpenStreetMap Overpass API
 
-Free, no API key required. Query for all named peaks within a bounding radius:
+Free, no API key required. Queries all named peaks within a bounding radius:
 
 ```
-[out:json];
+[out:json][timeout:25];
 node["natural"="peak"]["name"](around:200000,{lat},{lon});
 out;
 ```
 
-Replace `{lat}` and `{lon}` with the user's current GPS coordinates. `200000` = 200km radius in meters.
-
-Overpass endpoint: `https://overpass-api.de/api/interpreter`
-
+Overpass endpoint: `https://overpass-api.de/api/interpreter`  
 POST request, `Content-Type: application/x-www-form-urlencoded`, param `data=<query>`.
 
-The response contains an array of OSM nodes. Each node has:
-- `id` — OSM node ID
-- `lat`, `lon` — coordinates
-- `tags.name` — peak name
-- `tags.ele` — elevation in meters (string, may be absent)
+### Implemented files
 
-### SQLite layer
+**`lib/db.ts`** — SQLite singleton (WAL mode), schema init, bulk upsert via
+`withExclusiveTransactionAsync`, bounding-box query + Haversine corner trim.
 
-`expo-sqlite` is already installed. No configuration needed — it creates a file on the device.
+Key exports:
+```ts
+openDatabase(): Promise<SQLiteDatabase>
+upsertPeaks(db, peaks): Promise<void>
+queryPeaksInBounds(db, center, radiusKm): Promise<Peak[]>
+getLastFetch(db): Promise<{ center: Coordinates; fetchedAt: number } | null>
+setLastFetch(db, center): Promise<void>
+```
 
-Suggested schema:
-
+Schema:
 ```sql
 CREATE TABLE IF NOT EXISTS peaks (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  latitude REAL NOT NULL,
-  longitude REAL NOT NULL,
-  altitude REAL,
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  latitude    REAL NOT NULL,
+  longitude   REAL NOT NULL,
+  altitude    REAL,
   elevation_m REAL,
-  country TEXT,
-  region TEXT,
+  country     TEXT NOT NULL DEFAULT '',
+  region      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_peaks_coords ON peaks (latitude, longitude);
+
+CREATE TABLE IF NOT EXISTS fetch_cache (
+  id         INTEGER PRIMARY KEY CHECK (id = 1),
+  latitude   REAL    NOT NULL,
+  longitude  REAL    NOT NULL,
   fetched_at INTEGER NOT NULL
 );
-
-CREATE INDEX IF NOT EXISTS idx_peaks_coords ON peaks (latitude, longitude);
 ```
 
-### Suggested implementation plan
+**`lib/overpass.ts`** — POSTs the Overpass QL query, parses OSM nodes into `Peak[]`.
+Handles missing/malformed `ele` tags (elevation defaults to 0). Sets
+`coordinates.altitude` equal to `elevationMeters` so the elevation-angle math
+works the same as it did with the hardcoded seed data.
 
-**1. `lib/db.ts`** — database init and CRUD
-
-```ts
-export async function openDatabase(): Promise<SQLiteDatabase>
-export async function upsertPeaks(db: SQLiteDatabase, peaks: Peak[]): Promise<void>
-export async function queryPeaksInBounds(
-  db: SQLiteDatabase,
-  center: Coordinates,
-  radiusKm: number
-): Promise<Peak[]>
-```
-
-Use a bounding box for the SQL query (cheap), then apply Haversine in-memory to trim the corners. Bounding box approximation: `±(radiusKm / 111)` degrees latitude, adjusted for longitude.
-
-**2. `lib/overpass.ts`** — fetch from OSM
-
-```ts
-export async function fetchPeaksFromOverpass(
-  center: Coordinates,
-  radiusKm: number
-): Promise<Peak[]>
-```
-
-**3. `hooks/usePeakDatabase.ts`** — the data hook
+**`hooks/usePeakDatabase.ts`** — opens the DB on mount, exposes a stable
+`getPeaksNear(center, radiusKm)` function. Re-fetches from Overpass only when
+the user has moved >50 km from the last fetch origin; all other reads are
+instant SQLite queries with no network call.
 
 ```ts
 export function usePeakDatabase(): {
   isReady: boolean;
-  error: string | null;
-  getPeaksNear: (center: Coordinates, radiusKm: number) => Peak[];
+  dbError: string | null;
+  getPeaksNear: (center: Coordinates, radiusKm: number) => Promise<Peak[]>;
 }
 ```
 
-Cache invalidation: re-fetch if the user has moved more than 50km from the last fetch center. Store last fetch position + timestamp in SQLite.
-
-**4. Wire into `usePeakFinder`**
+**`hooks/usePeakFinder.ts`** — updated to use `usePeakDatabase` instead of the
+hardcoded array. Throttles DB reads to once per 5 km of movement (avoids a
+SQLite query on every GPS tick). Also now exposes:
 
 ```ts
-// Before
-import { PNW_PEAKS } from '@/data/peaks-pnw';
-const candidates = findCandidatePeaks(location.coordinates, compass.orientation, PNW_PEAKS);
-
-// After
-const { getPeaksNear } = usePeakDatabase();
-const peaks = getPeaksNear(location.coordinates, 200);
-const candidates = findCandidatePeaks(location.coordinates, compass.orientation, peaks);
+allNearbyPeaks: PeakCandidate[]  // all peaks in radius, sorted by distance (matchScore = 0)
+isLoadingPeaks: boolean          // true while fetching from Overpass / SQLite
 ```
 
-Once this works, delete `data/peaks-pnw.ts`.
+**`app/(tabs)/peaks.tsx`** — updated to consume `allNearbyPeaks` from
+`usePeakFinder` instead of importing `PNW_PEAKS` directly. Shows a spinner in
+the list header while `isLoadingPeaks` is true.
+
+### Caching behaviour
+
+| Situation | What happens |
+|-----------|-------------|
+| First launch in a new region | Overpass fetch (~1-3s), stored in SQLite |
+| Relaunch same region | Instant SQLite read, no network |
+| Moved >50 km | Background Overpass fetch, SQLite updated |
+| No network | Falls back to whatever is already cached |
 
 ---
 
